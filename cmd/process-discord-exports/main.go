@@ -186,7 +186,7 @@ func runImport(db *database.Database) error {
 		// sort backups by which timestamps they start from so they are linear history
 		slices.SortFunc(backupFiles, func(a, b backupFile) int {
 			if a.firstMessageTime == b.firstMessageTime {
-				return 0
+				return strings.Compare(a.file.Name(), b.file.Name())
 			}
 			if a.firstMessageTime.After(b.firstMessageTime) {
 				return 1
@@ -207,6 +207,13 @@ func runImport(db *database.Database) error {
 		}
 		return nil
 	}
+
+	// if err := processDir(shoppingChannelID); err != nil {
+	// 	return err
+	// }
+	// if err := processDir(mainChannelID); err != nil {
+	// 	return err
+	// }
 
 	if err := processDir(shoppingChannelID, mainChannelID); err != nil {
 		return err
@@ -232,6 +239,7 @@ func (p *Processor) channelState(c discord.Channel) *channelState {
 }
 
 func (p *Processor) storeCurrentGame(c discord.Channel) error {
+	// log.Printf("Storing game: %+v", p.LastKnownGame)
 	tx := p.db.GORM().Save(&p.channelState(c).LastKnownGame)
 	if tx.Error != nil {
 		return tx.Error
@@ -239,6 +247,8 @@ func (p *Processor) storeCurrentGame(c discord.Channel) error {
 	return nil
 }
 
+func (p *Processor) storeCurrentRound(c discord.Channel) error {
+	// log.Printf("Storing round: %+v", p.LastKnownRound)
 	tx := p.db.GORM().Create(&p.channelState(c).LastKnownRound)
 	if tx.Error != nil {
 		return tx.Error
@@ -247,6 +257,7 @@ func (p *Processor) storeCurrentGame(c discord.Channel) error {
 }
 
 func (p *Processor) storeInteraction(i *database.Interaction) error {
+	// log.Printf("Storing interaction: %+v", i)
 	tx := p.db.GORM().Create(i)
 	if tx.Error != nil {
 		return tx.Error
@@ -255,6 +266,7 @@ func (p *Processor) storeInteraction(i *database.Interaction) error {
 }
 
 func (p *Processor) storeUser(u *database.User) error {
+	// log.Printf("Storing user: %+v", u)
 	tx := p.db.GORM().Save(u)
 	if tx.Error != nil {
 		return tx.Error
@@ -308,6 +320,7 @@ func (p *Processor) lookupUserID(id string) (database.User, error) {
 }
 
 func (p *Processor) storeItem(i *database.Item) error {
+	// log.Printf("Storing item: %+v", i)
 	tx := p.db.GORM().Save(i)
 	if tx.Error != nil {
 		return tx.Error
@@ -335,6 +348,7 @@ func (p *Processor) lookupItem(name string) (database.Item, error) {
 }
 
 func (p *Processor) storeInteractionMessage(i *database.InteractionMessage) error {
+	// log.Printf("Storing interaction message: %+v", i)
 	tx := p.db.GORM().Save(i)
 	if tx.Error != nil {
 		return tx.Error
@@ -388,6 +402,7 @@ func (p *Processor) observeUserName(m discord.Message, id, name string) error {
 		return err
 	}
 
+	// log.Printf("Observed %s/%s via message ID %s", user.ID, name, m.ID)
 	lastChange = database.UserNameObservation{
 		User:   user,
 		UserID: user.ID,
@@ -563,10 +578,10 @@ func (p *Processor) processExport(backup discord.Backup) error {
 			case strings.Contains(embed.Title, "Daily Reward"):
 				// ignore
 			default:
-				desc, userInteractions, err := p.extractUsers(embed.Description)
-				if err != nil {
-					return p.wrapError(msg, err)
-				}
+				// desc, userInteractions, err := p.extractUsers(msg, embed.Description)
+				// if err != nil {
+				// 	return p.wrapError(msg, err)
+				// }
 				log.Printf("ignoring unhandled message:\n\n%s\n\n%s\n\n", msg.Content, spew.Sdump(embed))
 			}
 			if err != nil {
@@ -702,7 +717,7 @@ func (p *Processor) processGameCountdownStart(c discord.Channel, m discord.Messa
 
 		Embed description:
 
-		"E\u200e\u200er\u200ea:\u200e\u200e\u200e \u200e\u200e\u200e<:wol:696302964985298964>C\u200el\u200ea\u200es\u200e\u200es\u200eic\u200e\u200e \u200e\n\u200e\u200e\n\u200eCl\u200e\u200ei\u200e\u200e\u200ec\u200e\u200ek \u200e\u200et\u200eh\u200e\u200ee \u200ee\u200e\u200e\u200em\u200e\u200eoj\u200e\u200ei\u200e\u200e\u200e \u200eb\u200ee\u200e\u200e\u200el\u200e\u200e\u200eo\u200e\u200ew\u200e\u200e \u200et\u200e\u200e\u200eo\u200e\u200e\u200e \u200ej\u200e\u200e\u200eoi\u200e\u200e\u200en.\u200e\u200e\u200e \u200e\u200e\u200eS\u200et\u200e\u200ea\u200e\u200e\u200er\u200e\u200e\u200et\u200e\u200ei\u200e\u200e\u200en\u200eg\u200e \u200e\u200ei\u200e\u200e\u200en\u200e\u200e\u200e \u200e\u200e\u200e2\u200e \u200e\u200e\u200em\u200e\u200ein\u200eu\u200e\u200e\u200et\u200e\u200ee\u200e\u200e\u200es!"
+		"Era: <:wol:696302964985298964>Classic \n\nClick the emoji below to join. Starting in 2 minutes!"
 	*/
 
 	cleanDesc := strings.Map(filterGraphic, e.Description)
@@ -758,6 +773,8 @@ func (p *Processor) processGameWinner(c discord.Channel, m discord.Message) erro
 	// TODO - add most kills?
 	// TODO - add most revives?
 
+	// log.Printf("Game has a winner: %+v", p.LastKnownGame)
+
 	cs.LastKnownGame.EndTime = &m.Timestamp
 	if err := p.storeCurrentGame(c); err != nil {
 		return err
@@ -790,6 +807,21 @@ func (p *Processor) processGameCancelled(c discord.Channel, m discord.Message) e
 	return nil
 }
 
+func (p *Processor) processGameSummary(c discord.Channel, e discord.Embed) error {
+	cs := p.channelState(c)
+	if !cs.LastKnownIsGameRunning {
+		if cs.LastKnownGame.ID == 0 {
+			log.Printf("WARNING: Ignoring first incomplete round data: %+v", e)
+			return nil
+		}
+		log.Printf("ERROR: Seeing game summary data for an unknown game, failing: %+v", e)
+		return errors.New("found game summary data when no game considered running")
+	}
+
+	// TODO
+	return nil
+}
+
 var rxInteraction = regexp.MustCompile(`(?m)^(<:.+:\d+>)\s+\|\s+([^\n]+?)\s*$`)
 
 func (p *Processor) processRound(c discord.Channel, m discord.Message, e discord.Embed) error {
@@ -817,6 +849,7 @@ func (p *Processor) processRound(c discord.Channel, m discord.Message, e discord
 		return p.processEventRound(c, m, e)
 	}
 
+	// log.Printf("Round (STD): %+v\n", p.LastKnownRound)
 	cs.LastKnownRound.PostTime = m.Timestamp
 	if err := p.storeCurrentRound(c); err != nil {
 		return err
@@ -895,6 +928,8 @@ func (p *Processor) processGameStart(c discord.Channel, m discord.Message, e dis
 		return err
 	}
 
+	// log.Printf("New game started: %+v\n", p.LastKnownGame)
+
 	return nil
 }
 
@@ -917,6 +952,7 @@ func (p *Processor) processEventRound(c discord.Channel, m discord.Message, e di
 		return errors.New("found event round data when no game considered running")
 	}
 
+	// log.Printf("Round (EVENT): %+v\n", p.LastKnownRound)
 	cs.LastKnownRound.PostTime = m.Timestamp
 	if err := p.storeCurrentRound(c); err != nil {
 		return err
@@ -956,3 +992,35 @@ func (p *Processor) processEventRound(c discord.Channel, m discord.Message, e di
 	return nil
 }
 
+// func (p *Processor) processEventStorm(e discord.Embed) error {
+// 	/*
+// 		Embed title: "__Round 1__ - STORM"
+
+// 		Embed description:
+
+// 		"A storm is gathering in the arena!\nPlayers are getting hit by lightning.\n\nThe following players died:\n<:S:861698472272986122> | ~~**toniiz\\.**~~\n<:S:861698472272986122> | ~~**chiasacomfy**~~\n<:S:861698472272986122> | ~~**pomegranede**~~\n<:S:861698472272986122> | ~~**technobean**~~\n<:S:861698472272986122> | ~~**f4b11**~~\n<:S:861698472272986122> | ~~**luigisensei**~~\n<:S:861698472272986122> | ~~**alexhero**~~\n<:S:861698472272986122> | ~~**leerdix**~~\n\nPlayers Left: 26"
+// 	*/
+// 	return nil
+// }
+
+// func (p *Processor) processEventUFO(e discord.Embed) error {
+// 	/*
+// 		Embed title: "__Round 4__ - ALIEN ABDUCTION"
+
+// 		Embed description:
+
+// 		"Is that a UFO? Aliens are scooping up players like free samples!\n\nThe following players died:\n<:S:861698472272986122> | ~~**tacticaldragon57**~~\n<:S:861698472272986122> | ~~**rusthie**~~\n<:S:861698472272986122> | ~~**edsky the Mummy**~~\n<:S:861698472272986122> | ~~**tetradx**~~\n<:S:861698472272986122> | ~~**luigisensei**~~\n<:S:861698472272986122> | ~~**jt0219 the Mummy**~~\n<:S:861698472272986122> | ~~**madslingshoter**~~\n<:S:861698472272986122> | ~~**cydral**~~\n<:S:861698472272986122> | ~~**fries2443**~~\n\nPlayers Left: 25"
+// 	*/
+// 	return nil
+// }
+
+// func (p *Processor) processEventResurrection(e discord.Embed) error {
+// 	/*
+// 		Embed title: "__Round 5__ - RESURRECTION"
+
+// 		Embed description:
+
+// 		"Looks like some zombies have retained their intelligence.\nThey are back in the fight!\n\nThe following players were revived:\n<:re:695955553259880470> | **super\\_mctea**\n<:re:695955553259880470> | **graxsnag the Holy**\n<:re:695955553259880470> | **lavapurg the Mummy**\n<:re:695955553259880470> | **\\_kazma**\n<:re:695955553259880470> | **daftsuki the One**\n\nPlayers Left: 24"
+// 	*/
+// 	return nil
+// }
