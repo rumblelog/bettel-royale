@@ -3,6 +3,7 @@ module github.com/icedream/hololive-bettel-royale-data-processing
 go 1.22.1
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/schollz/sqlite3dump v1.3.1
 	gorm.io/driver/sqlite v1.5.5

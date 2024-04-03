@@ -3,15 +3,24 @@ package database
 import "time"
 
 type User struct {
-	Name string `gorm:"primaryKey"`
+	ID string `gorm:"primaryKey"`
+}
+
+type UserNameObservation struct {
+	ID     int `gorm:"primaryKey"`
+	User   User
+	UserID string
+	Time   time.Time
+	Name   string
 }
 
 type InteractionUserMention struct {
-	ID     int `gorm:"primaryKey"`
-	UserID string
-	User   User
-	Killed bool
-	Suffix string
+	ID       int `gorm:"primaryKey"`
+	User     *User
+	UserID   *string
+	UserName string
+	Killed   bool
+	Suffix   string
 }
 
 type Item struct {
@@ -38,11 +47,14 @@ type Round struct {
 
 type Game struct {
 	ID                 int `gorm:"primaryKey"`
+	DiscordChannelID   string
 	Era                string
-	HostUserName       *string
+	HostUserID         *string
 	HostUser           *User
+	HostUserName       *string
 	StartTime          *time.Time
 	EndTime            *time.Time
+	Cancelled          bool
 	CountdownStartTime time.Time
 	XPMultiplier       float32
 	RewardCoins        uint

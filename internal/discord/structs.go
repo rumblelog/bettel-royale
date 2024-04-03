@@ -56,19 +56,33 @@ type Thumbnail struct {
 }
 
 type Embed struct {
-	Title       string    `json:"title"`
-	URL         any       `json:"url"`
-	Timestamp   any       `json:"timestamp"`
-	Description string    `json:"description"`
-	Color       string    `json:"color"`
-	Thumbnail   Thumbnail `json:"thumbnail"`
-	Images      []any     `json:"images"`
-	Fields      []any     `json:"fields"`
-	Footer      *Footer   `json:"footer,omitempty"`
+	Title       string      `json:"title"`
+	URL         any         `json:"url"`
+	Timestamp   any         `json:"timestamp"`
+	Description string      `json:"description"`
+	Color       string      `json:"color"`
+	Thumbnail   Thumbnail   `json:"thumbnail"`
+	Images      []any       `json:"images"`
+	Fields      []any       `json:"fields"`
+	Footer      *Footer     `json:"footer,omitempty"`
+	Author      EmbedAuthor `json:"author,omitempty"`
+}
+
+type EmbedAuthor struct {
+	Name    string `json:"name,omitempty"`
+	URL     any    `json:"url,omitempty"`
+	IconURL string `json:"iconUrl,omitempty"`
+}
+
+type Fields struct {
+	Name     string `json:"name,omitempty"`
+	Value    string `json:"value,omitempty"`
+	IsInline bool   `json:"isInline,omitempty"`
 }
 
 type Footer struct {
-	Text string
+	Text    string `json:"text,omitempty"`
+	IconURL string `json:"iconUrl,omitempty"`
 }
 
 type Reference struct {
@@ -107,7 +121,7 @@ type Message struct {
 	Embeds             []Embed      `json:"embeds"`
 	Stickers           []any        `json:"stickers"`
 	Reactions          []Reaction   `json:"reactions"`
-	Mentions           []any        `json:"mentions"`
+	Mentions           []User       `json:"mentions"`
 	Reference          *Reference   `json:"reference,omitempty"`
 	Interaction        *Interaction `json:"interaction,omitempty"`
 }

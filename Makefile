@@ -11,6 +11,7 @@ DCE_CMD := $(DOTNET) $(DCE_BIN_PATH)
 
 DISCORD_TOKEN = 
 BATTLE_ROYALE_CHANNEL_ID = 1224009923457847428
+BATTLE_ROYALE_SHOPPING_CHANNEL_ID = 1224017701744410695
 
 .PHONY: all
 all: dumps
@@ -53,6 +54,7 @@ discord-export-channel: $(DCE_DEPS) discord-token
 
 discord-export: $(DCE_DEPS) discord-token
 	$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_CHANNEL_ID)
+	$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_SHOPPING_CHANNEL_ID)
 
 # Returns last message ID in local archives, if no archive exists will output 0
 # instead of an ID.

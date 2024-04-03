@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/icedream/hololive-bettel-royale-data-processing/internal/database"
 	"github.com/icedream/hololive-bettel-royale-data-processing/internal/discord"
 	_ "github.com/mattn/go-sqlite3"
@@ -24,6 +25,7 @@ import (
 
 const (
 	mainChannelID     = `1224009923457847428`
+	shoppingChannelID = `1224017701744410695`
 	botAuthorID       = `693167035068317736`
 )
 
@@ -66,12 +68,17 @@ func main() {
 	}
 }
 
-type Processor struct {
-	db *database.Database
-
+type channelState struct {
 	LastKnownIsGameRunning bool
 	LastKnownGame          database.Game
 	LastKnownRound         database.Round
+}
+
+type Processor struct {
+	db *database.Database
+
+	channels        map[string]*channelState
+	LastKnownGameID int
 }
 
 func runDump(db *database.Database) error {
@@ -130,68 +137,79 @@ func runImport(db *database.Database) error {
 		return err
 	}
 
-	backupFiles := []backupFile{}
+	p := newProcessor(db)
+	processDir := func(channelIDs ...string) error {
+		backupFiles := []backupFile{}
 
-	// extract timestamps from each discord export
-	if err := filepath.Walk("discord-exports/"+mainChannelID, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
+		walkFunc := func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() || !strings.EqualFold(filepath.Ext(info.Name()), ".json") {
+				return nil
+			}
+			r, err := os.OpenFile(path, os.O_RDONLY, 0o400)
+			if err != nil {
+				return err
+			}
+			// r will be closed in second loop
+
+			// only extract first message timestamp for sorting
+			var backup struct {
+				Messages []struct {
+					Timestamp time.Time `json:"timestamp"`
+				} `json:"messages"`
+			}
+			if err := json.NewDecoder(r).Decode(&backup); err != nil {
+				return err
+			}
+			if _, err := r.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			firstMessage := backup.Messages[0]
+			backupFiles = append(backupFiles, backupFile{
+				file:             r,
+				firstMessageTime: firstMessage.Timestamp,
+			})
+
 			return nil
 		}
-		r, err := os.OpenFile(path, os.O_RDONLY, 0o400)
-		if err != nil {
-			return err
-		}
-		// r will be closed in second loop
 
-		// only extract first message timestamp for sorting
-		var backup struct {
-			Messages []struct {
-				Timestamp time.Time `json:"timestamp"`
-			} `json:"messages"`
-		}
-		if err := json.NewDecoder(r).Decode(&backup); err != nil {
-			return err
-		}
-		if _, err := r.Seek(0, io.SeekStart); err != nil {
-			return err
+		// extract timestamps from each discord export
+		for _, channelID := range channelIDs {
+			if err := filepath.Walk("discord-exports/"+channelID, walkFunc); err != nil {
+				return err
+			}
 		}
 
-		firstMessage := backup.Messages[0]
-		backupFiles = append(backupFiles, backupFile{
-			file:             r,
-			firstMessageTime: firstMessage.Timestamp,
+		// sort backups by which timestamps they start from so they are linear history
+		slices.SortFunc(backupFiles, func(a, b backupFile) int {
+			if a.firstMessageTime == b.firstMessageTime {
+				return 0
+			}
+			if a.firstMessageTime.After(b.firstMessageTime) {
+				return 1
+			}
+			return -1
 		})
 
+		// actually process the backups
+		for _, backupFile := range backupFiles {
+			var backup discord.Backup
+			if err := json.NewDecoder(backupFile.file).Decode(&backup); err != nil {
+				return fmt.Errorf("failed to parse message export %s: %w", backupFile.file.Name(), err)
+			}
+			backupFile.file.Close()
+			if err := p.processExport(backup); err != nil {
+				return fmt.Errorf("failure in message export %s: %w", backupFile.file.Name(), err)
+			}
+		}
 		return nil
-	}); err != nil {
-		return err
 	}
 
-	// sort backups by which timestamps they start from so they are linear history
-	slices.SortFunc(backupFiles, func(a, b backupFile) int {
-		if a.firstMessageTime == b.firstMessageTime {
-			return 0
-		}
-		if a.firstMessageTime.After(b.firstMessageTime) {
-			return 1
-		}
-		return -1
-	})
-
-	// actually process the backups
-	p := newProcessor(db)
-	for _, backupFile := range backupFiles {
-		var backup discord.Backup
-		if err := json.NewDecoder(backupFile.file).Decode(&backup); err != nil {
-			return fmt.Errorf("failed to parse message export %s: %w", backupFile.file.Name(), err)
-		}
-		backupFile.file.Close()
-		if err := p.processExport(backup); err != nil {
-			return fmt.Errorf("failure in message export %s: %w", backupFile.file.Name(), err)
-		}
+	if err := processDir(shoppingChannelID, mainChannelID); err != nil {
+		return err
 	}
 
 	return nil
@@ -199,20 +217,29 @@ func runImport(db *database.Database) error {
 
 func newProcessor(db *database.Database) *Processor {
 	return &Processor{
-		db: db,
+		db:       db,
+		channels: map[string]*channelState{},
 	}
 }
 
-func (p *Processor) storeCurrentGame() error {
-	tx := p.db.GORM().Save(&p.LastKnownGame)
+func (p *Processor) channelState(c discord.Channel) *channelState {
+	state, ok := p.channels[c.ID]
+	if !ok {
+		state = &channelState{}
+		p.channels[c.ID] = state
+	}
+	return state
+}
+
+func (p *Processor) storeCurrentGame(c discord.Channel) error {
+	tx := p.db.GORM().Save(&p.channelState(c).LastKnownGame)
 	if tx.Error != nil {
 		return tx.Error
 	}
 	return nil
 }
 
-func (p *Processor) storeCurrentRound() error {
-	tx := p.db.GORM().Create(&p.LastKnownRound)
+	tx := p.db.GORM().Create(&p.channelState(c).LastKnownRound)
 	if tx.Error != nil {
 		return tx.Error
 	}
@@ -235,13 +262,36 @@ func (p *Processor) storeUser(u *database.User) error {
 	return nil
 }
 
-func (p *Processor) lookupUser(name string) (database.User, error) {
-	u := database.User{}
+func (p *Processor) lookupUserName(m discord.Message, name string) (*database.User, error) {
 	if len(name) == 0 {
+		return nil, errors.New("empty username")
+	}
+	u := database.UserNameObservation{}
+	// next-best guess principle, also partially trust that people didn't take
+	// each other's nicknames (which thanks to april fools is an even more than
+	// usual unreliable unassumption... oh well, we'll see how it holds)
+	tx := p.db.GORM().
+		Preload("User").
+		Where("name = ?", name).
+		Last(&u)
+	err := tx.Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("WARNING: Could not find ID of user name %s for message ID %s, leaving null for now", name, m.ID)
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u.User, err
+}
+
+func (p *Processor) lookupUserID(id string) (database.User, error) {
+	u := database.User{}
+	if len(id) == 0 {
 		return u, errors.New("empty username")
 	}
 	tx := p.db.GORM().
-		Where("name = ?", name).
+		Where("id = ?", id).
 		First(&u)
 	err := tx.Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -251,7 +301,7 @@ func (p *Processor) lookupUser(name string) (database.User, error) {
 		return u, err
 	}
 	if tx.RowsAffected == 0 {
-		u.Name = name
+		u.ID = id
 		err = p.storeUser(&u)
 	}
 	return u, err
@@ -321,32 +371,203 @@ func (p *Processor) wrapError(msg discord.Message, err error) error {
 	return err
 }
 
+func (p *Processor) observeUserName(m discord.Message, id, name string) error {
+	user, err := p.lookupUserID(id)
+	if err != nil {
+		return err
+	}
+
+	var lastChange database.UserNameObservation
+	if tx := p.db.GORM().
+		Where("user_id = ?", id).
+		Last(&lastChange); tx.Error == nil {
+		if lastChange.Name == name {
+			return nil // this nickname is already observed to be the latest one
+		}
+	} else if !errors.Is(tx.Error, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	lastChange = database.UserNameObservation{
+		User:   user,
+		UserID: user.ID,
+		Name:   name,
+		Time:   m.Timestamp,
+	}
+	if tx := p.db.GORM().Create(&lastChange); tx.Error != nil {
+		return tx.Error
+	}
+
+	// find games up to this point that had the host user nulled but not the name
+	var games []*database.Game
+	if tx := p.db.GORM().
+		Where(`host_user_id IS NULL`).
+		Where(`host_user_name = ?`, name).
+		Find(&games); tx.Error == nil {
+		if len(games) > 0 {
+			// update these records since we now have a user to fill out with
+			for _, game := range games {
+				game.HostUser = &user
+				game.HostUserID = &user.ID
+				if tx := p.db.GORM().Save(game); tx.Error != nil {
+					return tx.Error
+				}
+			}
+			log.Printf("WARNING: Fixed up %d games for %s/%s", len(games), user.ID, name)
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	// find interactions up to this point that had user ID nulled
+	var records []*database.InteractionUserMention
+	if tx := p.db.GORM().
+		Where(`user_id IS NULL`).
+		Where(`user_name = ?`, name).
+		Find(&records); tx.Error == nil {
+		if len(records) > 0 {
+			// update these records since we now have a user to fill out with
+			for _, record := range records {
+				record.User = &user
+				record.UserID = &user.ID
+				if tx := p.db.GORM().Save(record); tx.Error != nil {
+					return tx.Error
+				}
+			}
+			log.Printf("WARNING: Fixed up %d entries for %s/%s", len(records), user.ID, name)
+		} else if name == "menardi" {
+			log.Fatal("Something went wrong here")
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	return nil
+}
+
 func (p *Processor) processExport(backup discord.Backup) error {
 	for _, msg := range backup.Messages {
+		// in an attempt to collect up-to-message-date username changes, let's
+		// try to extract all possible hints
+		if msg.Interaction != nil {
+			// record interacted user
+			if err := p.observeUserName(msg, msg.Interaction.User.ID, msg.Interaction.User.Name); err != nil {
+				return err
+			}
+		}
+		if len(msg.Mentions) > 0 {
+			// record mentioned users
+			for _, mention := range msg.Mentions {
+				if err := p.observeUserName(msg, mention.ID, mention.Name); err != nil {
+					return err
+				}
+			}
+		}
+		if len(msg.Reactions) > 0 {
+			// record reacting users
+			for _, reaction := range msg.Reactions {
+				for _, user := range reaction.Users {
+					if err := p.observeUserName(msg, user.ID, user.Name); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		if msg.Author.ID != botAuthorID {
+			// record author user
+			if err := p.observeUserName(msg, msg.Author.ID, msg.Author.Name); err != nil {
+				return err
+			}
 			continue
 		}
 		if len(msg.Embeds) < 1 {
 			continue
 		}
-		for _, embed := range msg.Embeds {
+	embedLoop:
+		for embedIndex, embed := range msg.Embeds {
 			var err error
 			switch {
 			case strings.Contains(embed.Title, "hosted by ") ||
 				(embed.Footer != nil && embed.Footer.Text == "Automatic Session"):
-				err = p.processGameCountdownStart(msg, embed)
+				err = p.processGameCountdownStart(backup.Channel, msg, embed)
+			case strings.HasPrefix(embed.Description, "Starting in "):
+				// ignore continued countdown
 			case strings.HasPrefix(embed.Title, "Started a new "):
-				err = p.processGameStart(msg, embed)
-			case strings.Contains(embed.Title, "WINNER!"):
-				err = p.processGameWinner(msg, embed)
+				err = p.processGameStart(backup.Channel, msg, embed)
+			case embed.Title == "Rumble Royale session cancelled":
+				err = p.processGameCancelled(backup.Channel, msg)
+				break embedLoop
+			case embedIndex == 0 && strings.Contains(embed.Title, "WINNER!"):
+				err = p.processGameWinner(backup.Channel, msg)
+				break embedLoop
+			case strings.Contains(embed.Author.Name, "'s balance") ||
+				strings.Contains(embed.Author.Name, "'s backpacks") ||
+				strings.Contains(embed.Author.Name, "'s Classic Era Items and Skins") &&
+					msg.Interaction != nil:
+				// extract recorded past nickname from responses to user-specific command
+				fields := strings.SplitN(embed.Author.Name, "'", 2)
+				if err := p.observeUserName(msg, msg.Interaction.User.ID, unescapeMarkdown(fields[0])); err != nil {
+					return err
+				}
+				break embedLoop
 			case strings.HasPrefix(embed.Title, "__Round "):
-				err = p.processRound(msg, embed)
+				err = p.processRound(backup.Channel, msg, embed)
+			case embed.Description == "Your inventory is empty.":
+				// ignore
+			case embed.Description == "You already have this title equipped!":
+				// ignore
+			case strings.Contains(embed.Author.Name, "'s Profile"):
+				// ignore, could have been requested by any user
+			case strings.Contains(embed.Title, "'s Battle History"):
+				// ignore, could have been requested by any user
+			case strings.Contains(embed.Title, "Event Quests"):
+				// ignore
+			case strings.HasPrefix(embed.Title, "Season") && strings.HasSuffix(embed.Title, "| Overview"):
+				// ignore
+			case strings.HasSuffix(embed.Title, "Leaderboard:") || strings.HasPrefix(embed.Title, "Leaderboard "):
+				// ignore
+			case embed.Author.Name == "Title Change":
+				// ignore
+			case embed.Author.Name == "Quotes | View" ||
+				embed.Title == "Quotes | View" ||
+				embed.Title == "Quotes | Select":
+				// ignore
+			case embed.Author.Name == "Banners":
+				// ignore
+			case embed.Title == "Banners":
+				// ignore
+			case strings.HasPrefix(embed.Title, "COSMETICS"):
+				// ignore
+			case strings.Contains(embed.Title, "umble") && strings.Contains(embed.Title, "ass") && strings.Contains(embed.Title, "eason"):
+				// ignore
+			case strings.Contains(embed.Description, "Thanks for voting! Enjoy your free"):
+				// ignore free gems for voting
+			case embed.Title == "Vote for Rumble Royale":
+				// ignore reward for voting
+			case embed.Title == "Rumble Royale Info":
+				// ignore bot describing itself
+			case embed.Title == "Rumble Royale Overview":
+				// ignore bot describing itself
+			case embed.Title == "Rumble Royale Commands":
+				// ignore bot describing itself
+			case strings.Contains(embed.Title, "Era Phrases"):
+				// ignore
+			case embed.Title == "Black Market" || embed.Author.Name == "Black Market":
+				// ignore black market messages
+			case embed.Title == "We're glad you're enjoying the bot":
+				// ignore support message
+			case embed.Title == "Backpack Rewards!":
+				// ignore
+			case strings.Contains(embed.Title, "Weekly Reward"):
+				// ignore
+			case strings.Contains(embed.Title, "Daily Reward"):
+				// ignore
 			default:
 				desc, userInteractions, err := p.extractUsers(embed.Description)
 				if err != nil {
 					return p.wrapError(msg, err)
 				}
-				log.Printf("ignoring unhandled message:\n\n[%s]\n\tEmbed title: %q\n\n\tEmbed description:\n\n\t%q\n\nUsernames: %+v\n\n", msg.Timestamp, embed.Title, desc, userInteractions)
+				log.Printf("ignoring unhandled message:\n\n%s\n\n%s\n\n", msg.Content, spew.Sdump(embed))
 			}
 			if err != nil {
 				return p.wrapError(msg, err)
@@ -370,32 +591,24 @@ func unescapeMarkdown(msg string) string {
 	return msg
 }
 
-func (p *Processor) extractUsers(msg string) (string, []database.InteractionUserMention, error) {
+func (p *Processor) extractUsers(m discord.Message, msg string) (string, []database.InteractionUserMention, error) {
 	matches := rxUserFormatted.FindAllStringSubmatch(msg, -1)
 	userInteractions := []database.InteractionUserMention{}
 	for _, match := range matches {
 		var userInteraction database.InteractionUserMention
 		switch {
 		case len(match[1]) != 0: // ~~**USERNAME SUFFIX**~~
-			user, err := p.lookupUser(unescapeMarkdown(match[1]))
-			if err != nil {
-				return "", nil, err
-			}
+			userName := unescapeMarkdown(match[1])
 			userInteraction = database.InteractionUserMention{
-				User:   user,
-				UserID: user.Name,
-				Killed: true,
-				Suffix: match[2],
+				UserName: userName,
+				Killed:   true,
+				Suffix:   match[2],
 			}
 		case len(match[3]) != 0: // **USERNAME SUFFIX**
-			user, err := p.lookupUser(unescapeMarkdown(match[3]))
-			if err != nil {
-				return "", nil, err
-			}
+			userName := unescapeMarkdown(match[3])
 			userInteraction = database.InteractionUserMention{
-				User:   user,
-				UserID: user.Name,
-				Suffix: match[4],
+				UserName: userName,
+				Suffix:   match[4],
 			}
 		}
 		index := slices.Index(userInteractions, userInteraction)
@@ -404,6 +617,17 @@ func (p *Processor) extractUsers(msg string) (string, []database.InteractionUser
 			userInteractions = append(userInteractions, userInteraction)
 		}
 		msg = strings.Replace(msg, match[0], fmt.Sprintf(`{{users[%d]}}`, index), 1)
+	}
+	// fill out users if possible
+	for i := range userInteractions {
+		user, err := p.lookupUserName(m, userInteractions[i].UserName)
+		if err != nil {
+			return msg, nil, err
+		}
+		if user != nil {
+			userInteractions[i].User = user
+			userInteractions[i].UserID = &user.ID
+		}
 	}
 	return msg, userInteractions, nil
 }
@@ -436,31 +660,43 @@ func filterGraphic(r rune) rune {
 
 var rxEra = regexp.MustCompile(`(?m)Era:\s+(<:.+:.+>)?\s*([^\r\n]+?)\s*(?:$|\n)`)
 
-func (p *Processor) createNewGame(era string, host *database.User) {
-	p.LastKnownGame = database.Game{
-		ID:  p.LastKnownGame.ID + 1,
-		Era: era,
+func (p *Processor) createNewGame(c discord.Channel, m discord.Message, era string, hostName *string) error {
+	cs := p.channelState(c)
+	p.LastKnownGameID++
+	cs.LastKnownGame = database.Game{
+		ID:               p.LastKnownGameID,
+		Era:              era,
+		HostUserName:     hostName,
+		DiscordChannelID: c.ID,
 	}
-	if host != nil {
-		p.LastKnownGame.HostUser = host
-		p.LastKnownGame.HostUserName = &host.Name
+	if hostName != nil {
+		hostUser, err := p.lookupUserName(m, *hostName)
+		if err != nil {
+			return err
+		}
+		if hostUser != nil {
+			cs.LastKnownGame.HostUser = hostUser
+			cs.LastKnownGame.HostUserID = &hostUser.ID
+		}
 	}
-	p.LastKnownRound = database.Round{
-		GameID: p.LastKnownGame.ID,
-		Game:   p.LastKnownGame,
+	cs.LastKnownRound = database.Round{
+		GameID: cs.LastKnownGame.ID,
+		Game:   cs.LastKnownGame,
 	}
-	p.LastKnownIsGameRunning = false
+	cs.LastKnownIsGameRunning = false
+	return nil
 }
 
-func (p *Processor) createNewRound(roundNumber int) {
-	p.LastKnownRound = database.Round{
-		GameID:      p.LastKnownGame.ID,
-		Game:        p.LastKnownGame,
+func (p *Processor) createNewRound(c discord.Channel, roundNumber int) {
+	cs := p.channelState(c)
+	cs.LastKnownRound = database.Round{
+		GameID:      cs.LastKnownGame.ID,
+		Game:        cs.LastKnownGame,
 		RoundNumber: roundNumber,
 	}
 }
 
-func (p *Processor) processGameCountdownStart(m discord.Message, e discord.Embed) error {
+func (p *Processor) processGameCountdownStart(c discord.Channel, m discord.Message, e discord.Embed) error {
 	/*
 		Embed title: "Rumble Royale hosted by astelzoom"
 
@@ -479,23 +715,23 @@ func (p *Processor) processGameCountdownStart(m discord.Message, e discord.Embed
 	}
 
 	// find host
-	var hostUser *database.User
+	var hostUserName *string
 	if fields := strings.SplitN(cleanTitle, " hosted by ", 2); len(fields) == 2 {
-		user, err := p.lookupUser(fields[1])
-		if err != nil {
-			return err
-		}
-		hostUser = &user
+		username := unescapeMarkdown(fields[1])
+		hostUserName = &username
 	}
 
 	// start countdown of new game
-	p.createNewGame(era, hostUser)
-	p.LastKnownGame.CountdownStartTime = m.Timestamp
+	if err := p.createNewGame(c, m, era, hostUserName); err != nil {
+		return err
+	}
+	p.channelState(c).LastKnownGame.CountdownStartTime = m.Timestamp
 
+	// log.Printf("New game counting down: %+v\n", p.LastKnownGame)
 	return nil
 }
 
-func (p *Processor) processGameWinner(m discord.Message, e discord.Embed) error {
+func (p *Processor) processGameWinner(c discord.Channel, m discord.Message) error {
 	/*
 		Embed title: "<:Crwn2:872850260756664350> **__WINNER!__**"
 
@@ -503,33 +739,60 @@ func (p *Processor) processGameWinner(m discord.Message, e discord.Embed) error 
 
 		"**technobean**\n**Reward:** 6200 <:gold:695955554199142421>\n<:xp:860094804984725504> **1.5x XP multiplier!**"
 
+		Additional embeds contain fields listing Runners-up, Most Kills (optional), Most Revives (optional).
 	*/
 
-	if !p.LastKnownIsGameRunning {
-		if p.LastKnownGame.ID == 0 {
-			log.Printf("WARNING: Ignoring first incomplete round data: %+v", e)
+	cs := p.channelState(c)
+	if !cs.LastKnownIsGameRunning {
+		if cs.LastKnownGame.ID == 0 {
+			log.Printf("WARNING: Ignoring first incomplete round data: %+v", m)
 			return nil
 		}
-		log.Printf("ERROR: Seeing game winner data for an unknown game, failing: %+v", e)
+		log.Printf("ERROR: Seeing game winner data for an unknown game, failing: %+v", m)
 		return errors.New("found game winner data when no game considered running")
 	}
 
 	// TODO - mark user as winner of this round?
 	// TODO - add up reward & xp?
+	// TODO - add runners-up?
+	// TODO - add most kills?
+	// TODO - add most revives?
 
-	p.LastKnownGame.EndTime = &m.Timestamp
-	if err := p.storeCurrentGame(); err != nil {
+	cs.LastKnownGame.EndTime = &m.Timestamp
+	if err := p.storeCurrentGame(c); err != nil {
 		return err
 	}
 
-	p.LastKnownIsGameRunning = false
+	cs.LastKnownIsGameRunning = false
+
+	return nil
+}
+
+func (p *Processor) processGameCancelled(c discord.Channel, m discord.Message) error {
+	ch := p.channelState(c)
+	if !ch.LastKnownIsGameRunning {
+		if ch.LastKnownGame.ID == 0 {
+			log.Printf("WARNING: Ignoring first incomplete round data: %+v", m)
+			return nil
+		}
+		log.Printf("ERROR: Seeing game cancellation for an unknown game, failing: %+v", m)
+		return errors.New("found game cancellation when no game considered running")
+	}
+
+	ch.LastKnownGame.EndTime = &m.Timestamp
+	ch.LastKnownGame.Cancelled = true
+	if err := p.storeCurrentGame(c); err != nil {
+		return err
+	}
+
+	ch.LastKnownIsGameRunning = false
 
 	return nil
 }
 
 var rxInteraction = regexp.MustCompile(`(?m)^(<:.+:\d+>)\s+\|\s+([^\n]+?)\s*$`)
 
-func (p *Processor) processRound(m discord.Message, e discord.Embed) error {
+func (p *Processor) processRound(c discord.Channel, m discord.Message, e discord.Embed) error {
 	/*
 		Embed title: "__Round 1__"
 
@@ -539,8 +802,9 @@ func (p *Processor) processRound(m discord.Message, e discord.Embed) error {
 
 	*/
 
-	if !p.LastKnownIsGameRunning {
-		if p.LastKnownGame.ID == 0 {
+	cs := p.channelState(c)
+	if !cs.LastKnownIsGameRunning {
+		if cs.LastKnownGame.ID == 0 {
 			log.Printf("WARNING: Ignoring first incomplete round data: %+v", e)
 			return nil
 		}
@@ -550,16 +814,16 @@ func (p *Processor) processRound(m discord.Message, e discord.Embed) error {
 
 	// check if it is an event
 	if strings.Contains(e.Title, " - ") {
-		return p.processEventRound(m, e)
+		return p.processEventRound(c, m, e)
 	}
 
-	p.LastKnownRound.PostTime = m.Timestamp
-	if err := p.storeCurrentRound(); err != nil {
+	cs.LastKnownRound.PostTime = m.Timestamp
+	if err := p.storeCurrentRound(c); err != nil {
 		return err
 	}
 
 	for _, line := range rxInteraction.FindAllStringSubmatch(e.Description, -1) {
-		line, userInteractions, err := p.extractUsers(line[2])
+		line, userInteractions, err := p.extractUsers(m, line[2])
 		if err != nil {
 			return err
 		}
@@ -574,8 +838,8 @@ func (p *Processor) processRound(m discord.Message, e discord.Embed) error {
 		i := database.Interaction{
 			Message:      interactionMessage,
 			MessageID:    interactionMessage.ID,
-			Round:        p.LastKnownRound,
-			RoundID:      p.LastKnownRound.ID,
+			Round:        cs.LastKnownRound,
+			RoundID:      cs.LastKnownRound.ID,
 			UserMentions: userInteractions,
 			Items:        items,
 		}
@@ -584,7 +848,7 @@ func (p *Processor) processRound(m discord.Message, e discord.Embed) error {
 		}
 	}
 
-	p.createNewRound(p.LastKnownRound.RoundNumber + 1)
+	p.createNewRound(c, cs.LastKnownRound.RoundNumber+1)
 
 	return nil
 }
@@ -594,7 +858,7 @@ var (
 	rxPrize        = regexp.MustCompile(`\*\*Prize:\*\*\s+(\d+)`)
 )
 
-func (p *Processor) processGameStart(m discord.Message, e discord.Embed) error {
+func (p *Processor) processGameStart(c discord.Channel, m discord.Message, e discord.Embed) error {
 	/*
 		Embed title: "Started a new Rumble Royale session"
 
@@ -605,8 +869,9 @@ func (p *Processor) processGameStart(m discord.Message, e discord.Embed) error {
 
 	cleanDesc := strings.Map(filterGraphic, e.Description)
 
-	p.LastKnownIsGameRunning = true
-	p.LastKnownGame.StartTime = &m.Timestamp
+	cs := p.channelState(c)
+	cs.LastKnownIsGameRunning = true
+	cs.LastKnownGame.StartTime = &m.Timestamp
 
 	// extract rewarded coins
 	if match := rxPrize.FindStringSubmatch(cleanDesc); match != nil {
@@ -614,7 +879,7 @@ func (p *Processor) processGameStart(m discord.Message, e discord.Embed) error {
 		if err != nil {
 			return err
 		}
-		p.LastKnownGame.RewardCoins = uint(prize)
+		cs.LastKnownGame.RewardCoins = uint(prize)
 	}
 
 	// extract XP multiplier
@@ -623,17 +888,17 @@ func (p *Processor) processGameStart(m discord.Message, e discord.Embed) error {
 		if err != nil {
 			return err
 		}
-		p.LastKnownGame.XPMultiplier = float32(multiplier64)
+		cs.LastKnownGame.XPMultiplier = float32(multiplier64)
 	}
 
-	if err := p.storeCurrentGame(); err != nil {
+	if err := p.storeCurrentGame(c); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (p *Processor) processEventRound(m discord.Message, e discord.Embed) error {
+func (p *Processor) processEventRound(c discord.Channel, m discord.Message, e discord.Embed) error {
 	/*
 		Embed title: "__Round 1__ - STORM"
 
@@ -642,8 +907,9 @@ func (p *Processor) processEventRound(m discord.Message, e discord.Embed) error 
 		"A storm is gathering in the arena!\nPlayers are getting hit by lightning.\n\nThe following players died:\n<:S:861698472272986122> | ~~**toniiz\\.**~~\n<:S:861698472272986122> | ~~**chiasacomfy**~~\n<:S:861698472272986122> | ~~**pomegranede**~~\n<:S:861698472272986122> | ~~**technobean**~~\n<:S:861698472272986122> | ~~**f4b11**~~\n<:S:861698472272986122> | ~~**luigisensei**~~\n<:S:861698472272986122> | ~~**alexhero**~~\n<:S:861698472272986122> | ~~**leerdix**~~\n\nPlayers Left: 26"
 	*/
 
-	if !p.LastKnownIsGameRunning {
-		if p.LastKnownGame.ID == 0 {
+	cs := p.channelState(c)
+	if !cs.LastKnownIsGameRunning {
+		if cs.LastKnownGame.ID == 0 {
 			log.Printf("WARNING: Ignoring first incomplete round data: %+v", e)
 			return nil
 		}
@@ -651,8 +917,8 @@ func (p *Processor) processEventRound(m discord.Message, e discord.Embed) error 
 		return errors.New("found event round data when no game considered running")
 	}
 
-	p.LastKnownRound.PostTime = m.Timestamp
-	if err := p.storeCurrentRound(); err != nil {
+	cs.LastKnownRound.PostTime = m.Timestamp
+	if err := p.storeCurrentRound(c); err != nil {
 		return err
 	}
 
@@ -661,7 +927,7 @@ func (p *Processor) processEventRound(m discord.Message, e discord.Embed) error 
 
 	eventTitle := strings.SplitN(cleanTitle, " - ", 2)[1]
 	eventDescription := strings.SplitN(cleanDesc, "\n\n", 2)[0]
-	cleanDesc, userInteractions, err := p.extractUsers(cleanDesc)
+	cleanDesc, userInteractions, err := p.extractUsers(m, cleanDesc)
 	if err != nil {
 		return err
 	}
@@ -676,8 +942,8 @@ func (p *Processor) processEventRound(m discord.Message, e discord.Embed) error 
 	i := database.Interaction{
 		Message:      interactionMessage,
 		MessageID:    interactionMessage.ID,
-		Round:        p.LastKnownRound,
-		RoundID:      p.LastKnownRound.ID,
+		Round:        cs.LastKnownRound,
+		RoundID:      cs.LastKnownRound.ID,
 		UserMentions: userInteractions,
 		Items:        items,
 	}
@@ -685,7 +951,7 @@ func (p *Processor) processEventRound(m discord.Message, e discord.Embed) error 
 		return err
 	}
 
-	p.createNewRound(p.LastKnownRound.RoundNumber + 1)
+	p.createNewRound(c, cs.LastKnownRound.RoundNumber+1)
 
 	return nil
 }

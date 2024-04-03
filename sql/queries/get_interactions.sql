@@ -7,7 +7,7 @@ SELECT
     m.event AS event,
     m.text AS text,
     GROUP_CONCAT(item.name, ';') AS items,
-    GROUP_CONCAT(user.name, ';') AS users
+    GROUP_CONCAT(uno.name, ';') AS users
 FROM interactions i
 LEFT JOIN rounds r
     ON i.round_id = r.id
@@ -24,5 +24,7 @@ LEFT JOIN interaction_user_mention_mappings umm
 LEFT JOIN interaction_user_mentions um
     ON umm.interaction_user_mention_id = um.id
 LEFT JOIN users AS user
-    ON um.user_id = user.name
+    ON um.user_id = user.id
+LEFT JOIN user_name_observations AS uno
+    ON uno.user_id = user.id AND uno.id = (SELECT MAX(uno2.id) FROM user_name_observations uno2 WHERE uno2.user_id = user.id)
 GROUP BY i.id;
