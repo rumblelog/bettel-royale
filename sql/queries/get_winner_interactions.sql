@@ -5,7 +5,8 @@ SELECT DISTINCT
     g.id AS game_id,
     g.start_time AS game_start_time,
     winner_uno.name AS winner_user_name,
-    sum(uno.name = winner_uno.name) AS winner_interactions
+    sum(uno.name = winner_uno.name) AS winner_interactions,
+    concat('https://canary.discord.com/channels/558322816416743459/', g.discord_channel_id, '/', g.discord_message_id) AS game_discord_message_link
 FROM games g
 LEFT JOIN users AS winner_user
     ON g.winner_user_id = winner_user.id
@@ -37,4 +38,5 @@ LEFT JOIN user_name_observations AS uno
         FROM user_name_observations uno2
         WHERE uno2.user_id = user.id
     )
-GROUP BY g.id, winner_uno.name;
+GROUP BY g.id, winner_uno.name
+ORDER BY winner_interactions ASC;
