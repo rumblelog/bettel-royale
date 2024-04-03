@@ -35,3 +35,6 @@ The SQL dump itself is structured into multiple tables:
     occurred in and the round number within that game.
 -   `users` - Contains username of any Discord user that ever was shown to
     interact in Battle Royale.
+
+For examples on how to write queries against this data you can check out
+[sql/queries/](`sql/queries/`).
