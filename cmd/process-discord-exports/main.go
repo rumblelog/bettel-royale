@@ -808,6 +808,7 @@ func (p *Processor) processGameWinner(c discord.Channel, m discord.Message, e di
 	cs.LastKnownGame.WinnerUserName = &userMentions[0].UserName
 	cs.LastKnownGame.WinnerUserID = userMentions[0].UserID
 	cs.LastKnownGame.WinnerUser = userMentions[0].User
+	cs.LastKnownGame.DiscordEndMessageID = m.ID
 
 	// record game finish timestamp
 	cs.LastKnownGame.EndTime = &m.Timestamp
@@ -821,9 +822,9 @@ func (p *Processor) processGameWinner(c discord.Channel, m discord.Message, e di
 }
 
 func (p *Processor) processGameCancelled(c discord.Channel, m discord.Message) error {
-	ch := p.channelState(c)
-	if !ch.LastKnownIsGameRunning {
-		if ch.LastKnownGame.ID == 0 {
+	cs := p.channelState(c)
+	if !cs.LastKnownIsGameRunning {
+		if cs.LastKnownGame.ID == 0 {
 			log.Printf("WARNING: Ignoring first incomplete round data: %+v", m)
 			return nil
 		}
@@ -831,13 +832,14 @@ func (p *Processor) processGameCancelled(c discord.Channel, m discord.Message) e
 		return errors.New("found game cancellation when no game considered running")
 	}
 
-	ch.LastKnownGame.EndTime = &m.Timestamp
-	ch.LastKnownGame.Cancelled = true
+	cs.LastKnownGame.EndTime = &m.Timestamp
+	cs.LastKnownGame.Cancelled = true
+	cs.LastKnownGame.DiscordEndMessageID = m.ID
 	if err := p.storeCurrentGame(c); err != nil {
 		return err
 	}
 
-	ch.LastKnownIsGameRunning = false
+	cs.LastKnownIsGameRunning = false
 
 	return nil
 }
@@ -885,6 +887,7 @@ func (p *Processor) processRound(c discord.Channel, m discord.Message, e discord
 	}
 
 	// log.Printf("Round (STD): %+v\n", p.LastKnownRound)
+	cs.LastKnownRound.DiscordMessageID = m.ID
 	cs.LastKnownRound.PostTime = m.Timestamp
 	if err := p.storeCurrentRound(c); err != nil {
 		return err
@@ -939,6 +942,7 @@ func (p *Processor) processGameStart(c discord.Channel, m discord.Message, e dis
 
 	cs := p.channelState(c)
 	cs.LastKnownIsGameRunning = true
+	cs.LastKnownGame.DiscordMessageID = m.ID
 	cs.LastKnownGame.StartTime = &m.Timestamp
 
 	// extract rewarded coins
@@ -988,6 +992,7 @@ func (p *Processor) processEventRound(c discord.Channel, m discord.Message, e di
 	}
 
 	// log.Printf("Round (EVENT): %+v\n", p.LastKnownRound)
+	cs.LastKnownRound.DiscordMessageID = m.ID
 	cs.LastKnownRound.PostTime = m.Timestamp
 	if err := p.storeCurrentRound(c); err != nil {
 		return err

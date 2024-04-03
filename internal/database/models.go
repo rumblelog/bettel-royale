@@ -38,29 +38,32 @@ type Interaction struct {
 }
 
 type Round struct {
-	ID          int `gorm:"primaryKey"`
-	GameID      int `gorm:"index:game_round_idx,unique"`
-	Game        Game
-	RoundNumber int `gorm:"index:game_round_idx,unique"`
-	PostTime    time.Time
+	ID               int `gorm:"primaryKey"`
+	GameID           int `gorm:"index:game_round_idx,unique"`
+	Game             Game
+	RoundNumber      int `gorm:"index:game_round_idx,unique"`
+	PostTime         time.Time
+	DiscordMessageID string
 }
 
 type Game struct {
-	ID                 int `gorm:"primaryKey"`
-	DiscordChannelID   string
-	Era                string
-	HostUserID         *string
-	HostUser           *User
-	HostUserName       *string
-	StartTime          *time.Time
-	EndTime            *time.Time
-	Cancelled          bool
-	CountdownStartTime time.Time
-	XPMultiplier       float32
-	RewardCoins        uint
-	WinnerUserID       *string
-	WinnerUser         *User
-	WinnerUserName     *string
+	ID                  int `gorm:"primaryKey"`
+	DiscordChannelID    string
+	DiscordMessageID    string
+	Era                 string
+	HostUserID          *string
+	HostUser            *User
+	HostUserName        *string
+	StartTime           *time.Time
+	EndTime             *time.Time
+	Cancelled           bool
+	CountdownStartTime  time.Time
+	XPMultiplier        float32
+	RewardCoins         uint
+	DiscordEndMessageID string
+	WinnerUserID        *string
+	WinnerUser          *User
+	WinnerUserName      *string
 }
 
 type InteractionMessage struct {
