@@ -17,8 +17,8 @@ The SQL dump itself is structured into multiple tables:
 
 -   `game` - Every game that happened is listed here with the information of who
     hosted it (or `NULL` if it was an automatically scheduled game), which era
-    it ran on, when it started, the XP multiplier and the amount of coins
-    rewarded for a win.
+    it ran on, when it started, the XP multiplier, the amount of coins rewarded
+    for a win and which channel it was started in.
 -   `interactions` - Every interaction that happened is listed here with the
     round that it occurred in. The message ID is the respective message template
     in the `interaction_messages` template.
@@ -33,8 +33,17 @@ The SQL dump itself is structured into multiple tables:
     occurred in.
 -   `rounds` - Every round that happened is listed here with the game it
     occurred in and the round number within that game.
--   `users` - Contains username of any Discord user that ever was shown to
-    interact in Battle Royale.
+-   `users` - Contains Discord User ID of any Discord userreferenced in other
+    tables. Used to contain user name but that is now in
+    `user_name_observations`.
+-   `user_name_observations` - Contains the observations of the tool when
+    someone was first seen with what nickname. This is where you should map the
+    user ID to a nickname. Usually, you want the newest entry from this for
+    simplicity but you can also try and approximate the username that would be
+    closest to an entry's timestamp, however these timestamps aren't exactly
+    accurate to when the nickname was actually changed, only when it was first
+    picked up by the tool as being used in the respective channels in any
+    visible way.
 
 For examples on how to write queries against this data you can check out
 [sql/queries/](sql/queries/).
