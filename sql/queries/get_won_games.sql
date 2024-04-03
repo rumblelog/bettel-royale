@@ -1,6 +1,6 @@
--- Get list of rounds won by a specific user.
+-- Get list of games won by a specific user.
 --
--- name: GetWonRounds :many
+-- name: GetWonGames :many
 SELECT DISTINCT
     g.id AS game_id,
     g.start_time AS game_start_time,

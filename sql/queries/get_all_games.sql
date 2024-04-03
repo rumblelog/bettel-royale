@@ -1,10 +1,10 @@
--- Get list of rounds a specific user took part in, along with whether the user
--- won in that round or not.
+-- Get list of games a specific user took part in, along with whether the user
+-- won in that game or not.
 --
 -- The query builds off the fact that a user must have been killed once to lose
 -- or must be listed as a winner even if they never did anything in a match.
 --
--- name: GetAllRounds :many
+-- name: GetAllGames :many
 SELECT DISTINCT
     g.id AS game_id,
     (winner_uno.name = 'icedream') AS is_winner
