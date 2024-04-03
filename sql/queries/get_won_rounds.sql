@@ -14,5 +14,5 @@ LEFT JOIN user_name_observations AS winner_uno
         FROM user_name_observations winner_uno2
         WHERE winner_uno2.user_id = winner_user.id
     )
-WHERE winner_uno.name = 'icedream';
+WHERE winner_uno.name = 'icedream'
 GROUP BY g.id, uno.name;
