@@ -10,6 +10,9 @@ DCE_CMD := $(DOTNET) $(DCE_BIN_PATH)
 DISCORD_TOKEN = 
 BATTLE_ROYALE_CHANNEL_ID = 1224009923457847428
 
+.PHONY: all
+all: dumps
+
 .PHONY: build-dce
 build-dce: submodules/DiscordChatExporter/DiscordChatExporter.Cli/bin/Release/net8.0/DiscordChatExporter.Cli.dll
 
