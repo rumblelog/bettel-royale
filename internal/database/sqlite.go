@@ -72,6 +72,7 @@ func (d *Database) GORM() *gorm.DB {
 
 var entities []interface{} = []any{
 	&User{},
+	&UserNameObservation{},
 	&InteractionUserMention{},
 	&Item{},
 	&InteractionMessage{},
