@@ -2,4 +2,5 @@
 *.sqlite3
 *.csv
 *.json
+!discord-exports/*/manual_fixup/*.json
 *.log

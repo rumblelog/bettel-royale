@@ -1,0 +1,39 @@
+{
+    "guild": {
+        "id": "558322816416743459",
+        "name": "Hololive Fan Server",
+        "iconUrl": "https://cdn.discordapp.com/icons/558322816416743459/a_7dce20ea39a879a0f4dfc22d4bee56b6.gif?size=512"
+    },
+    "channel": {
+        "id": "1224009923457847428",
+        "type": "GuildTextChat",
+        "categoryId": "558322816995426304",
+        "category": "Other chatting",
+        "name": "bettel-royale",
+        "topic": null
+    },
+    "dateRange": {
+        "after": null,
+        "before": null
+    },
+    "exportedAt": "2024-04-03T02:10:07.5388543+00:00",
+    "messages": [
+        {
+            "id": "1224071537532080191_m",
+            "type": "Default",
+            "timestamp": "2024-03-31T19:03:16.697+00:00",
+            "content": "",
+            "author": {
+                "id": "378331605963505665",
+                "name": "chasefaith",
+                "discriminator": "0000"
+            },
+            "attachments": [],
+            "embeds": [],
+            "stickers": [],
+            "reactions": [],
+            "mentions": []
+        }
+    ],
+    "messageCount": 1
+}
