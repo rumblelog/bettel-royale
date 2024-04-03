@@ -33,6 +33,7 @@ type Round struct {
 	GameID      int `gorm:"index:game_round_idx,unique"`
 	Game        Game
 	RoundNumber int `gorm:"index:game_round_idx,unique"`
+	PostTime    time.Time
 }
 
 type Game struct {
@@ -40,7 +41,8 @@ type Game struct {
 	Era                string
 	HostUserName       *string
 	HostUser           *User
-	StartTime          time.Time
+	StartTime          *time.Time
+	EndTime            *time.Time
 	CountdownStartTime time.Time
 	XPMultiplier       float32
 	RewardCoins        uint
