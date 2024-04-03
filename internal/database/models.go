@@ -58,6 +58,9 @@ type Game struct {
 	CountdownStartTime time.Time
 	XPMultiplier       float32
 	RewardCoins        uint
+	WinnerUserID       *string
+	WinnerUser         *User
+	WinnerUserName     *string
 }
 
 type InteractionMessage struct {

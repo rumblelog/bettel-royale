@@ -434,6 +434,27 @@ func (p *Processor) observeUserName(m discord.Message, id, name string) error {
 		return err
 	}
 
+	// find games up to this point that had the winner user nulled but not the name
+	games = []*database.Game{}
+	if tx := p.db.GORM().
+		Where(`winner_user_id IS NULL`).
+		Where(`winner_user_name = ?`, name).
+		Find(&games); tx.Error == nil {
+		if len(games) > 0 {
+			// update these records since we now have a user to fill out with
+			for _, game := range games {
+				game.WinnerUser = &user
+				game.WinnerUserID = &user.ID
+				if tx := p.db.GORM().Save(game); tx.Error != nil {
+					return tx.Error
+				}
+			}
+			log.Printf("WARNING: Fixed up %d games for %s/%s", len(games), user.ID, name)
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
 	// find interactions up to this point that had user ID nulled
 	var records []*database.InteractionUserMention
 	if tx := p.db.GORM().
@@ -513,7 +534,7 @@ func (p *Processor) processExport(backup discord.Backup) error {
 				err = p.processGameCancelled(backup.Channel, msg)
 				break embedLoop
 			case embedIndex == 0 && strings.Contains(embed.Title, "WINNER!"):
-				err = p.processGameWinner(backup.Channel, msg)
+				err = p.processGameWinner(backup.Channel, msg, embed)
 				break embedLoop
 			case strings.Contains(embed.Author.Name, "'s balance") ||
 				strings.Contains(embed.Author.Name, "'s backpacks") ||
@@ -746,7 +767,7 @@ func (p *Processor) processGameCountdownStart(c discord.Channel, m discord.Messa
 	return nil
 }
 
-func (p *Processor) processGameWinner(c discord.Channel, m discord.Message) error {
+func (p *Processor) processGameWinner(c discord.Channel, m discord.Message, e discord.Embed) error {
 	/*
 		Embed title: "<:Crwn2:872850260756664350> **__WINNER!__**"
 
@@ -767,14 +788,28 @@ func (p *Processor) processGameWinner(c discord.Channel, m discord.Message) erro
 		return errors.New("found game winner data when no game considered running")
 	}
 
-	// TODO - mark user as winner of this round?
-	// TODO - add up reward & xp?
+	// we're skipping adding reward and XP here since that was already recorded
+	// at the beginning of the round
+
 	// TODO - add runners-up?
 	// TODO - add most kills?
 	// TODO - add most revives?
 
 	// log.Printf("Game has a winner: %+v", p.LastKnownGame)
 
+	// record game winner
+	_, userMentions, err := p.extractUsers(m, strings.SplitN(e.Description, "\n", 2)[0])
+	if err != nil {
+		return err
+	}
+	if len(userMentions) != 1 {
+		return errors.New("unexpected amount of user names found in winning message")
+	}
+	cs.LastKnownGame.WinnerUserName = &userMentions[0].UserName
+	cs.LastKnownGame.WinnerUserID = userMentions[0].UserID
+	cs.LastKnownGame.WinnerUser = userMentions[0].User
+
+	// record game finish timestamp
 	cs.LastKnownGame.EndTime = &m.Timestamp
 	if err := p.storeCurrentGame(c); err != nil {
 		return err
