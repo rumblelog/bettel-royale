@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -551,6 +552,11 @@ func (p *Processor) processRound(e discord.Embed) error {
 	return nil
 }
 
+var (
+	rxXPMultiplier = regexp.MustCompile(`([\d\.]+)x\s+XP\s+multiplier`)
+	rxPrize        = regexp.MustCompile(`\*\*Prize:\*\*\s+(\d+)`)
+)
+
 func (p *Processor) processGameStart(m discord.Message, e discord.Embed) error {
 	/*
 		Embed title: "Started a new Rumble Royale session"
@@ -560,8 +566,28 @@ func (p *Processor) processGameStart(m discord.Message, e discord.Embed) error {
 		"**Number of participants:** 30\n**Era:** <:easter_leghorse:1094271879616921680>Easter\n**Prize:** 6000 <:gold:695955554199142421>\n**Gold Per Kill:** 60 <:gold:695955554199142421>\n\n\n<:xp:860094804984725504> **1.5x XP multiplier!**"
 	*/
 
+	cleanDesc := strings.Map(filterGraphic, e.Description)
+
 	p.LastKnownIsGameRunning = true
 	p.LastKnownGame.StartTime = m.Timestamp
+
+	// extract rewarded coins
+	if match := rxPrize.FindStringSubmatch(cleanDesc); match != nil {
+		prize, err := strconv.ParseUint(match[1], 10, 64)
+		if err != nil {
+			return err
+		}
+		p.LastKnownGame.RewardCoins = uint(prize)
+	}
+
+	// extract XP multiplier
+	if match := rxXPMultiplier.FindStringSubmatch(cleanDesc); match != nil {
+		multiplier64, err := strconv.ParseFloat(match[1], 32)
+		if err != nil {
+			return err
+		}
+		p.LastKnownGame.XPMultiplier = float32(multiplier64)
+	}
 
 	if err := p.storeCurrentGame(); err != nil {
 		return err
