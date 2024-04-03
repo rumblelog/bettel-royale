@@ -1,4 +1,6 @@
 DOTNET = dotnet
+GIT = git
+GO = go
 
 DCE_SRC_PATH = submodules/DiscordChatExporter
 DCE_BUILT_BIN_PATH := $(DCE_SRC_PATH)/DiscordChatExporter.Cli/bin/Release/net8.0/DiscordChatExporter.Cli.dll
@@ -24,8 +26,8 @@ discord-token: $(DCE_DEPS)
 # GIT SUBMODULES AUTO CHECKOUT
 
 submodules/DiscordChatExporter: .git
-	if [ ! -d $(CURDIR)/.git ]; then echo "ERROR: Need to check out with Git instead of downloading as source tarball for this to work." >&2; exit 1; fi
-	git submodule update --init $@
+	@[ -d $(CURDIR)/.git ] || (echo "ERROR: Need to check out with Git instead of downloading as source tarball for this to work." >&2; exit 1)
+	$(GIT) submodule update --init $@
 
 ##############################
 # DISCORD CHAT EXPORTER BUILD
@@ -58,7 +60,7 @@ clean-db:
 
 main.db:
 	@[ -d discord-exports/$(BATTLE_ROYALE_CHANNEL_ID) ] || (echo "ERROR: No discord export of battle royale channel exists yet, run \`make discord-export\` to create one."; exit 1)
-	go run -v ./cmd/process-discord-exports import
+	$(GO) run -v ./cmd/process-discord-exports import
 
 .PHONY: clean-dumps
 clean-dumps:
@@ -68,4 +70,4 @@ clean-dumps:
 dumps: sql/all.sql
 
 sql/all.sql: main.db
-	go run -v ./cmd/process-discord-exports dump >$@
+	$(GO) run -v ./cmd/process-discord-exports dump >$@
