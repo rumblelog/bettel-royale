@@ -46,10 +46,22 @@ dce-help: $(DCE_DEPS)
 	$(DCE_CMD) --help
 
 discord-export-channel: $(DCE_DEPS) discord-token
-	$(DCE_CMD) export -t $(DISCORD_TOKEN) -f json --markdown false --utc -p 100 -o discord-exports/$(DISCORD_CHANNEL_ID)/ -c $(DISCORD_CHANNEL_ID)
+	$(DCE_CMD) export -t $(DISCORD_TOKEN) -f json --markdown false --utc -p 100 \
+		-o discord-exports/$(DISCORD_CHANNEL_ID)/$(shell date +%s)/ \
+		-c $(DISCORD_CHANNEL_ID) \
+		--after $(shell $(MAKE) -s discord-export-last-message-id DISCORD_CHANNEL_ID=$(DISCORD_CHANNEL_ID))
 
 discord-export: $(DCE_DEPS) discord-token
 	$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_CHANNEL_ID)
+
+# Returns last message ID in local archives, if no archive exists will output 0
+# instead of an ID.
+discord-export-last-message-id:
+	([ ! -d ./discord-exports/$(DISCORD_CHANNEL_ID) ] || find ./discord-exports/$(DISCORD_CHANNEL_ID) -name '*.json' -exec cat {} \;) |\
+	(jq -r '.messages .[] .id' && echo 0) |\
+	sort -n |\
+	uniq |\
+	tail -n1
 
 #############
 # PROCESSING
@@ -71,3 +83,6 @@ dumps: sql/all.sql
 
 sql/all.sql: main.db
 	$(GO) run -v ./cmd/process-discord-exports dump >$@
+
+commit-sql-dump:
+	git diff --exit-code ./sql/all.sql && echo "Nothing to be committed." || $(GIT) commit -m "Update SQL dump up to $(shell grep -Po '^-- Latest game time considered in this dump: \K.+' sql/all.sql)." -- ./sql/all.sql
