@@ -18,7 +18,7 @@ The SQL dump itself is structured into multiple tables:
 -   `game` - Every game that happened is listed here with the information of who
     hosted it (or `NULL` if it was an automatically scheduled game), which era
     it ran on, when it started, the XP multiplier, the amount of coins rewarded
-    for a win and which channel it was started in.
+    for a win, who won and which channel it was started in.
 -   `interactions` - Every interaction that happened is listed here with the
     round that it occurred in. The message ID is the respective message template
     in the `interaction_messages` template.
