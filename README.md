@@ -37,4 +37,4 @@ The SQL dump itself is structured into multiple tables:
     interact in Battle Royale.
 
 For examples on how to write queries against this data you can check out
-[sql/queries/](`sql/queries/`).
+[sql/queries/](sql/queries/).
