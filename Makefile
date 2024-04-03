@@ -59,7 +59,7 @@ discord-export: $(DCE_DEPS) discord-token
 # Returns last message ID in local archives, if no archive exists will output 0
 # instead of an ID.
 discord-export-last-message-id:
-	([ ! -d ./discord-exports/$(DISCORD_CHANNEL_ID) ] || find ./discord-exports/$(DISCORD_CHANNEL_ID) -name '*.json' -exec cat {} \;) |\
+	([ ! -d ./discord-exports/$(DISCORD_CHANNEL_ID) ] || find ./discord-exports/$(DISCORD_CHANNEL_ID) -name '*.json' -not -path '*/manual_fixup/*' -exec cat {} \;) |\
 	(jq -r '.messages .[] .id' && echo 0) |\
 	sort -n |\
 	uniq |\
