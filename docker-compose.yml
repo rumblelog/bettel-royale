@@ -1,0 +1,24 @@
+secrets:
+  gpg-signing-key:
+    file: 3FA79C51EF9291C075EBF9AA7AE218039EB131B3.asc
+  discord-token:
+    file: discord-token
+services:
+  processing:
+    build:
+      context: .
+      dockerfile: process-discord-exports.Dockerfile
+    volumes:
+      - ./sql:/sql
+      - ./db:/db
+      - ./discord-exports:/discord-exports
+      - ./docker-home:/home/icedream
+    environment:
+      DATABASE_PATH: /db/main.db
+      EXPORTS_PATH: /discord-exports
+      SQL_DUMPS_PATH: /sql
+      HOME: /home/icedream
+    user: '1003'
+    env_file: process-discord-exports.env
+    secrets:
+      - gpg-signing-key
