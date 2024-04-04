@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -29,22 +30,34 @@ const (
 	botAuthorID       = `693167035068317736`
 )
 
+var (
+	exportsPath  = "discord-exports"
+	databasePath = "main.db"
+)
+
+func init() {
+	flag.StringVar(&exportsPath, "exports-path", exportsPath, "DIRPATH")
+	flag.StringVar(&databasePath, "database-path", databasePath, "FILEPATH")
+	flag.Parse()
+}
+
 type backupFile struct {
 	firstMessageTime time.Time
 	file             *os.File
 }
 
 func main() {
-	if len(os.Args) < 2 {
+	subcommand := flag.Arg(0)
+	if len(subcommand) == 0 {
 		log.Fatal("Need a subcommand to execute")
 	}
 
-	db, err := database.OpenSQLite("main.db")
+	db, err := database.OpenSQLite(databasePath)
 	if err != nil {
 		panic(err)
 	}
 
-	switch os.Args[1] {
+	switch subcommand {
 	case "dump":
 		if err := runDump(db); err != nil {
 			panic(err)
@@ -178,7 +191,7 @@ func runImport(db *database.Database) error {
 
 		// extract timestamps from each discord export
 		for _, channelID := range channelIDs {
-			if err := filepath.Walk("discord-exports/"+channelID, walkFunc); err != nil {
+			if err := filepath.Walk(exportsPath+"/"+channelID, walkFunc); err != nil {
 				return err
 			}
 		}
