@@ -91,7 +91,7 @@ func runDump(db *database.Database) error {
 	} else {
 		timestamps = append(timestamps, lastGame.CountdownStartTime)
 		if lastGame.StartTime != nil {
-			timestamps = append(timestamps, *lastGame.EndTime)
+			timestamps = append(timestamps, *lastGame.StartTime)
 		}
 		if lastGame.EndTime != nil {
 			timestamps = append(timestamps, *lastGame.EndTime)
