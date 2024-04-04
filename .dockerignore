@@ -36,3 +36,8 @@ go.work
 !.gitkeep
 *.asc
 *.gpg
+
+# Keys
+*_key
+*.pub
+ssh-known-hosts
