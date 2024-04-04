@@ -93,7 +93,7 @@ func (d *Database) Export(out io.Writer) error {
 	return sqlite3dump.DumpDB(
 		db,
 		out,
-		sqlite3dump.WithTransaction(false),
+		sqlite3dump.WithTransaction(true),
 		sqlite3dump.WithDropIfExists(true))
 }
 
