@@ -46,5 +46,37 @@ The SQL dump itself is structured into multiple tables:
     picked up by the tool as being used in the respective channels in any
     visible way.
 
+## Handling username changes over time
+
+Whenever a user is referenced, there usually will be an *ID* and a *name*
+column. Out of these, the *ID* column is the "more exact" one as it allows
+assocating all names a user ever had to the same user. However, that column can
+rarely also be `NULL` at least temporarily.
+
+In the rare case where the tool is unable to find a user ID associated with the
+name (e.g. a Discord archive ran late and the user changed their user name so
+quickly that it escaped the tool entirely), the ID will be `NULL` and only the
+name column will contain a value.
+
+If you want accurate data for analysis, you most likely want to reference via
+*ID*, or at least re-resolve the latest name of a user through the ID as was
+done for the example queries, rather than rely on the name column since that
+value will change over time for the same user.
+
 For examples on how to write queries against this data you can check out
 [sql/queries/](sql/queries/).
+
+## Pronouns
+
+Rumble Royale allows users to assign their own pronouns. However, this
+introduces complexity to reversing the collected data to as close to original as
+possible: Especially the singular `they` pronouns can easily be mixed up with
+references to multiple persons or items.
+
+This is a known issue still being worked on. For now, we only extract literal
+Discord usernames from the interaction messages but leave the pronouns intact as
+if they are part of the base template of the message. That means interactions
+will be duplicated but with different pronouns.
+
+As a consequence of this, it is currently recommended to filter for interaction
+messages with `LIKE '%...%'` instead of looking for specific IDs.
