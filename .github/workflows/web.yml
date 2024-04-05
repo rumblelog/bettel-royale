@@ -33,7 +33,7 @@ jobs:
       - name: Generate database from SQL dump
         run: mkdir -p db && sqlite3 db/main.db -init sql/all.sql
       - name: Share artifact inside workflow
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: db
           path: db/
@@ -45,7 +45,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4
       - name: Use Node.js 18.x
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
           node-version: 18.x
       - name: Install dependencies
@@ -60,7 +60,7 @@ jobs:
         working-directory: ./web/sqlite
         run: npm run build
       - name: Share artifact inside workflow
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: web-build
           path: web/sqlite/build/
@@ -84,4 +84,4 @@ jobs:
           name: web-build
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
