@@ -2,6 +2,7 @@
   "name": "sqlite",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://rumblelog.github.io/bettel-royale/",
   "dependencies": {
     "@stephen/sql.js": "^1.8.17",
     "@testing-library/jest-dom": "^5.17.0",
