@@ -28,7 +28,7 @@ RUN dotnet publish --no-restore -a $TARGETARCH -o /opt/DiscordChatExporter ./Dis
 
 FROM alpine:edge
 
-RUN apk add --no-cache make git jq dotnet8-runtime gnupg sqlite-libs
+RUN apk add --no-cache make git openssh-client jq dotnet8-runtime gnupg sqlite-libs grep
 
 # # install dotnet
 # ADD https://dot.net/v1/dotnet-install.sh dotnet-install.sh
