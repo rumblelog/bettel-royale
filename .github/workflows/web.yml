@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     # When application is successfully tested and build has been generated
     # Then we can start with deployment
-    needs: build
+    needs: [build, db]
     environment:
       name: github-pages
       url: ${{steps.deployment.outputs.page_url}}
