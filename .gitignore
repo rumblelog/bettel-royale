@@ -2,7 +2,7 @@
 *.db
 
 # Discord exports
-*.json
+discord-exports/**/*.json
 !discord-exports/*/manual_fixup/*.json
 
 # Log files
