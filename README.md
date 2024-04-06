@@ -8,8 +8,11 @@ specific point via this archive and query it for whatever you want.
 1.  [DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter) is used
     to download an archive of all messages in the respective Battle Royale
     channel.
-2.  A custom-written tool filters the data and extracts information with regex about each game, round, interaction (users/items, alive/killed) and event that happened.
-3.  All extracted information is written to an SQLite database and then written out to an SQL dump.
+2.  A custom-written tool filters the data and extracts information with regex
+    about each game, round, interaction (users/items, alive/killed) and event
+    that happened.
+3.  All extracted information is written to an SQLite database and then written
+    out to an SQL dump.
 
 ## Which data does the SQL dump contain?
 
