@@ -63,8 +63,8 @@ discord-export-channel: $(DCE_DEPS) discord-token
 		--after $(shell $(MAKE) -s discord-export-last-message-id DISCORD_CHANNEL_ID=$(DISCORD_CHANNEL_ID))
 
 discord-export: $(DCE_DEPS) discord-token
-	$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_CHANNEL_ID)
-	$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_SHOPPING_CHANNEL_ID)
+	-$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_CHANNEL_ID)
+	-$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_SHOPPING_CHANNEL_ID)
 
 # Returns last message ID in local archives, if no archive exists will output 0
 # instead of an ID.
