@@ -1,13 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import logo from './logo.svg';
 import './App.css';
 
 import { getDB, importDB, initDB } from './database';
 import { Database } from '@stephen/sql.js';
-import { getUsers } from './database/users.sql';
-import { getGames } from './database/games.sql';
-import { getItems } from './database/items.sql';
-import { getInteractions } from './database/interactions.sql';
+import MainPage from './components/pages/main';
 
 function App() {
   const [db, setDB] = useState<Database | null>(null);
@@ -35,7 +32,6 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
         <div>
           {
             error ? <p>
@@ -44,7 +40,14 @@ function App() {
             </p> : null
           }
           {
-            !db ? <p>Loading...</p> : null
+            !db
+              ? (
+                <div>
+                  <img src={logo} className="App-logo" alt="logo" />
+                  <p>Loading...</p>
+                </div>
+              )
+              : <MainPage db={db} />
           }
         </div>
       </header>
