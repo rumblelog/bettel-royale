@@ -30,6 +30,13 @@ LEFT JOIN `user_name_observations` AS uno
         SELECT MAX(uno2.`id`)
         FROM `user_name_observations` uno2
         WHERE uno2.`user_id` = u.`id`)
+WHERE
+  (m.`text` = @message_text OR @message_text IS NULL)
+  AND (m.`text` LIKE @message_text_like OR @message_text_like IS NULL)
+  AND (item.`name` = @item_name OR @item_name IS NULL) 
+  AND (u.`id` = @user_id OR @user_id IS NULL)
+  AND (uno.`name` = @user_name OR @user_name IS NULL)
+  AND (uno.`name` LIKE @user_name_like OR @user_name_like IS NULL)
 GROUP BY i.`id`
 ORDER BY i.`id` ASC
 LIMIT sqlc.narg('max_count')

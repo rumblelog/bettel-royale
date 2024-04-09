@@ -18,7 +18,9 @@ LEFT JOIN `user_name_observations` AS uno
     )
 LEFT JOIN `user_name_observations` AS olduno
     ON olduno.`user_id` = u.id AND olduno.`id` != uno.`id`
-WHERE uno.`name` LIKE sqlc.narg('like')
+WHERE 
+  (uno.`name` = @user_name OR @user_name IS NULL)
+  AND (uno.`name` LIKE @user_name_like OR @user_name_like IS NULL)
 GROUP BY u.`id`
 ORDER BY u.`id` ASC
 LIMIT sqlc.narg('max_count')

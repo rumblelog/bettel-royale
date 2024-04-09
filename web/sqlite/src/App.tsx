@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import logo from './logo.svg';
 import './App.css';
 
-import { getDB, importDB, initDB } from './mainDatabase';
+import { getDB, importDB, initDB } from './database';
 import { Database } from '@stephen/sql.js';
 import { getUsers } from './database/users.sql';
 import { getGames } from './database/games.sql';
@@ -22,24 +22,6 @@ function App() {
         await initDB();
         await importDB(new URL('db/main.db', window.location.href));
         const db = getDB();
-        // window.console.info(db.exec('select count(*) from games;').values());
-        console.info(getUsers(db, {
-          like: '%',
-          offset: 0,
-          maxCount: -1
-        }));
-        console.info(getGames(db, {
-          offset: 0,
-          maxCount: -1
-        }));
-        console.info(getItems(db, {
-          offset: 0,
-          maxCount: -1
-        }));
-        console.info(getInteractions(db, {
-          offset: 0,
-          maxCount: -1
-        }));
         setDB(db);
       } catch (err) {
         setError(err);

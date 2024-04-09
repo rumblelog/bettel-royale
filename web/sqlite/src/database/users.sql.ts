@@ -32,16 +32,19 @@ LEFT JOIN `+"`"+`user_name_observations`+"`"+` AS uno
     )
 LEFT JOIN `+"`"+`user_name_observations`+"`"+` AS olduno
     ON olduno.`+"`"+`user_id`+"`"+` = u.id AND olduno.`+"`"+`id`+"`"+` != uno.`+"`"+`id`+"`"+`
-WHERE uno.`+"`"+`name`+"`"+` LIKE ?1
+WHERE 
+  (uno.`+"`"+`name`+"`"+` = ?1 OR ?1 IS NULL)
+  AND (uno.`+"`"+`name`+"`"+` LIKE ?2 OR ?2 IS NULL)
 GROUP BY u.`+"`"+`id`+"`"+`
 ORDER BY u.`+"`"+`id`+"`"+` ASC
-LIMIT ?3
-OFFSET ?2
+LIMIT ?4
+OFFSET ?3
 `;
 
 
 export type GetUsersParams = {
-  like: string | null;
+  userName: string | null;
+  userNameLike: string | null;
   offset: number | null;
   maxCount: number | null;
 }
@@ -59,7 +62,12 @@ export type GetUsersRow = {
 
 
 export function getUsers(db: Database, arg: GetUsersParams): GetUsersRow[] {
-  const result = db.exec(getUsersStmt, [arg.like, arg.offset, arg.maxCount])
+  const result = db.exec(getUsersStmt, [
+arg.userName,
+arg.userNameLike,
+arg.offset,
+arg.maxCount,
+])
   if (result.length !== 1) {
     throw new Error("expected exec() to return a single query result")
   }

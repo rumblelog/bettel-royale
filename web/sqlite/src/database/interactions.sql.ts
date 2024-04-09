@@ -38,14 +38,27 @@ LEFT JOIN `+"`"+`user_name_observations`+"`"+` AS uno
         SELECT MAX(uno2.`+"`"+`id`+"`"+`)
         FROM `+"`"+`user_name_observations`+"`"+` uno2
         WHERE uno2.`+"`"+`user_id`+"`"+` = u.`+"`"+`id`+"`"+`)
+WHERE
+  (m.`+"`"+`text`+"`"+` = ?1 OR ?1 IS NULL)
+  AND (m.`+"`"+`text`+"`"+` LIKE ?2 OR ?2 IS NULL)
+  AND (item.`+"`"+`name`+"`"+` = ?3 OR ?3 IS NULL) 
+  AND (u.`+"`"+`id`+"`"+` = ?4 OR ?4 IS NULL)
+  AND (uno.`+"`"+`name`+"`"+` = ?5 OR ?5 IS NULL)
+  AND (uno.`+"`"+`name`+"`"+` LIKE ?6 OR ?6 IS NULL)
 GROUP BY i.`+"`"+`id`+"`"+`
 ORDER BY i.`+"`"+`id`+"`"+` ASC
-LIMIT ?2
-OFFSET ?1
+LIMIT ?8
+OFFSET ?7
 `;
 
 
 export type GetInteractionsParams = {
+  messageText: string | null;
+  messageTextLike: string | null;
+  itemName: string | null;
+  userId: string | null;
+  userName: string | null;
+  userNameLike: string | null;
   offset: number | null;
   maxCount: number | null;
 }
@@ -68,7 +81,16 @@ export type GetInteractionsRow = {
 // Get list of interactions by game/round with affected players/items.
 //
 export function getInteractions(db: Database, arg: GetInteractionsParams): GetInteractionsRow[] {
-  const result = db.exec(getInteractionsStmt, [arg.offset, arg.maxCount])
+  const result = db.exec(getInteractionsStmt, [
+arg.messageText,
+arg.messageTextLike,
+arg.itemName,
+arg.userId,
+arg.userName,
+arg.userNameLike,
+arg.offset,
+arg.maxCount,
+])
   if (result.length !== 1) {
     throw new Error("expected exec() to return a single query result")
   }
