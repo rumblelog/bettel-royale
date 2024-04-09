@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import logo from './logo.svg';
-import './App.css';
+import './App.scss';
 
 import { getDB, importDB, initDB } from './database';
 import { Database } from '@stephen/sql.js';
 import MainPage from './components/pages/main';
+import AppNavbar from './components/navigation/Navbar';
+import { Container, Section } from 'react-bulma-components';
 
 function App() {
   const [db, setDB] = useState<Database | null>(null);
@@ -31,26 +33,38 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <div>
-          {
-            error ? <p>
-              <strong>ERROR:</strong><br />
-              {error.toString()}
-            </p> : null
-          }
-          {
-            !db
-              ? (
-                <div>
-                  <img src={logo} className="App-logo" alt="logo" />
-                  <p>Loading...</p>
-                </div>
-              )
-              : <MainPage db={db} />
-          }
-        </div>
-      </header>
+      <AppNavbar />
+      <div className="content">
+        {
+          error ? <p>
+            <strong>ERROR:</strong><br />
+            {error.toString()}
+          </p> : null
+        }
+        {
+          !db
+            ? (
+              <div>
+                <img src={logo} className="App-logo" alt="logo" />
+                <p>Loading...</p>
+              </div>
+            )
+            : (
+              <Section>
+                <Container>
+                  {/* <Columns>
+                    <Columns.Column is='3'>
+                      Uhh
+                    </Columns.Column>
+                    <Columns.Column is='9'> */}
+                  <MainPage db={db} />
+                  {/* </Columns.Column>
+                  </Columns> */}
+                </Container>
+              </Section>
+            )
+        }
+      </div>
     </div>
   );
 }

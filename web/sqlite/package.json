@@ -4,6 +4,9 @@
   "private": true,
   "homepage": "https://rumblelog.github.io/bettel-royale/",
   "dependencies": {
+    "@fontsource/alef": "^5.0.8",
+    "@fontsource/quicksand": "^5.0.17",
+    "@fontsource/saira": "^5.0.27",
     "@fortawesome/fontawesome-free": "^6.5.2",
     "@fortawesome/fontawesome-svg-core": "^6.5.2",
     "@fortawesome/free-brands-svg-icons": "^6.5.2",
