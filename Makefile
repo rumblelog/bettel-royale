@@ -53,19 +53,23 @@ $(DCE_SRC_PATH)/DiscordChatExporter.Cli/bin/Release/net8.0/DiscordChatExporter.C
 clean-discord-exports:
 	$(RM) -r discord-exports
 
+.PHONY: dce-help
 dce-help: $(DCE_DEPS)
 	$(DCE_CMD) --help
 
+.PHONY: discord-export-channel
 discord-export-channel: $(DCE_DEPS) discord-token
 	$(DCE_CMD) export -t $(DISCORD_TOKEN) -f json --markdown false --utc -p 100 \
 		-o $(EXPORTS_PATH)/$(DISCORD_CHANNEL_ID)/$(shell date +%s)/ \
 		-c $(DISCORD_CHANNEL_ID) \
 		--after $(shell $(MAKE) -s discord-export-last-message-id DISCORD_CHANNEL_ID=$(DISCORD_CHANNEL_ID))
 
+.PHONY: discord-export
 discord-export: $(DCE_DEPS) discord-token
 	-$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_CHANNEL_ID)
 	-$(MAKE) discord-export-channel DISCORD_CHANNEL_ID=$(BATTLE_ROYALE_SHOPPING_CHANNEL_ID)
 
+.PHONY: discord-export-last-message-id
 # Returns last message ID in local archives, if no archive exists will output 0
 # instead of an ID.
 discord-export-last-message-id:
@@ -92,6 +96,7 @@ clean-dumps:
 .PHONY: dumps
 dumps: $(SQL_DUMPS_PATH)/all.sql
 
+.PHONY: process-discord-exports
 process-discord-exports:
 	$(GO) build -v -o $@ ./cmd/process-discord-exports
 
