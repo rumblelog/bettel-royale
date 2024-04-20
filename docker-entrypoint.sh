@@ -18,6 +18,9 @@ if [ -n "$SSH_KEY_FILE" ]; then
     ssh-add "$SSH_KEY_FILE"
 fi
 
+git config --global http.postBuffer 524288000 # Set a larger buffer size
+git config --global core.compression 0        # Disable compression
+
 export DISCORD_TOKEN
 trap 'gpgconf --kill gpg-agent && rm -f ~/.gnupg/public-keys.d/pubring.db.lock' EXIT
 
@@ -25,11 +28,8 @@ trap 'gpgconf --kill gpg-agent && rm -f ~/.gnupg/public-keys.d/pubring.db.lock' 
 : "${EXT_CLONE_URL:=https://github.com/icedream/hololive-bettel-royale-data-processing.git}"
 if [ "${EXT_CLONE:-0}" -ne 0 ]; then
     if [ ! -d "$EXT_CLONE_DIR/.git" ]; then
-        git init "$EXT_CLONE_DIR"
+        git clone --depth=1 "$EXT_CLONE_URL" "$EXT_CLONE_DIR"
         cd "$EXT_CLONE_DIR"
-        git remote add origin "$EXT_CLONE_URL"
-        git fetch origin
-        git checkout main
     else
         cd "$EXT_CLONE_DIR"
         git reset --hard
