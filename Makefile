@@ -98,7 +98,7 @@ dumps: $(SQL_DUMPS_PATH)/all.sql
 
 .PHONY: process-discord-exports
 process-discord-exports:
-	$(GO) build -v -o $@ ./cmd/process-discord-exports
+	CGO_ENABLED=1 $(GO) build -v -o $@ ./cmd/process-discord-exports
 
 # go code deps
 process-discord-exports: $(wildcard ./cmd/process-discord-exports/*.go)
